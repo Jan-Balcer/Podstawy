@@ -2,21 +2,19 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 
+# Helper function to convert string values to float
+def convert_to_float(column):
+    return column.str.replace(',', '.').astype(float)
+
 # Wczytywanie danych z pliku CSV
 filename = 'RYNED.csv'
 df = pd.read_csv(filename, sep=';', header=0)
 
 df.columns = df.columns.str.strip()
 
-print(df.columns)
-
-# Upewnijmy się, że dane są poprawnie wczytane
-print(df.head())
-
-# Zmiana etykiet kolumn (przykład zmiany kolumny '2004' na 'Rok 2004')
-# W dictionary podajesz, które kolumny chcesz zmienić
+# Zmiana etykiet kolumn
 new_column_names = {
-        'ogółem;2004;[%]': 'Rok 2004',
+    'ogółem;2004;[%]': 'Rok 2004',
     'ogółem;2005;[%]': 'Rok 2005',
     'ogółem;2006;[%]': 'Rok 2006',
     'ogółem;2007;[%]': 'Rok 2007',
@@ -37,24 +35,20 @@ new_column_names = {
     'ogółem;2022;[%]': 'Rok 2022',
     'ogółem;2023;[%]': 'Rok 2023',
     'Nazwa': 'Województwo'
-    # Dodaj inne kolumny, które chcesz zmienić
 }
 
 # Zastosowanie zmiany etykiet kolumn
 df.rename(columns=new_column_names, inplace=True)
 
-# Sprawdzenie, czy zmiany zostały zastosowane
-print(df.head())
-
 # 1. Wizualizacja obejmująca wszystkie województwa w wybranym okresie lat
 def plot_all_provinces(df, start_year, end_year):
     years = list(range(start_year, end_year + 1))
-    df_period = df[['Województwo'] + [f'Rok {year}' for year in years]]
+    df_period = df[['Województwo'] + [f'Rok {year}' for year in years]].copy()
 
     # Konwersja wartości na liczby zmiennoprzecinkowe
     for year in years:
         column = f'Rok {year}'
-        df_period[column] = df_period[column].str.replace(',', '.').astype(float)
+        df_period[column] = convert_to_float(df_period[column])
     
     plt.figure(figsize=(14, 7))
     
@@ -86,14 +80,12 @@ def plot_all_provinces(df, start_year, end_year):
 # 2. Wizualizacja dla wybranych trzech województw
 def plot_selected_provinces(df, provinces, start_year, end_year):
     years = [f'Rok {year}' for year in range(start_year, end_year + 1)]
-    df_filtered = df[df['Województwo'].str.strip().str.upper().isin([prov.upper() for prov in provinces])]
+    df_filtered = df[df['Województwo'].str.strip().str.upper().isin([prov.upper() for prov in provinces])].copy()
 
     # Konwersja wartości na liczby zmiennoprzecinkowe
     for year in years:
-        df_filtered[year] = df_filtered[year].str.replace(',', '.').astype(float)
+        df_filtered[year] = convert_to_float(df_filtered[year])
     
-    print(df_filtered.head())  # Debugowanie - sprawdzenie, co jest filtrowane
-
     if not df_filtered.empty:
         plt.figure(figsize=(14, 7))
         for index, row in df_filtered.iterrows():
@@ -114,40 +106,44 @@ def plot_selected_provinces(df, provinces, start_year, end_year):
 
 # Funkcja do rysowania wykresu kołowego dla wybranych trzech województw w roku 2020
 def plot_pie_chart(df, provinces, year):
-    # Filtrowanie danych dla wybranego roku i województw
-    df_filtered = df[df['Województwo'].str.strip().str.upper().isin([prov.upper() for prov in provinces])]
-    df_filtered = df_filtered[['Województwo', f'Rok {year}']]
-
+    # Create the column name for the specified year
+    year_column = f'Rok {year}'
+    
+    # Filter data for the selected year and provinces, excluding "POLSKA"
+    df_filtered = df[(df['Województwo'] != 'POLSKA') & df['Województwo'].str.upper().isin([prov.upper() for prov in provinces])].copy()
+    df_filtered = df_filtered[['Województwo', year_column]]
+    
+    # Drop rows with missing data
+    df_filtered.dropna(subset=[year_column], inplace=True)
+    
     # Konwersja wartości na liczby zmiennoprzecinkowe
-    df_filtered[f'Rok {year}'] = pd.to_numeric(df_filtered[f'Rok {year}'].str.replace(',', '.'), errors='coerce')
-
-    # Usunięcie wierszy z brakującymi danymi po konwersji
-    df_filtered.dropna(subset=[f'Rok {year}'], inplace=True)
-
-    # Sortowanie malejąco wg wartości bezrobocia w danym roku
-    df_filtered.sort_values(by=f'Rok {year}', ascending=False, inplace=True)
-
-    # Wybór trzech najwyższych wartości oraz pozostałych
+    df_filtered[year_column] = convert_to_float(df_filtered[year_column])
+    
+    # Sort values in descending order by unemployment rate in the selected year
+    df_filtered.sort_values(by=year_column, ascending=False, inplace=True)
+    
+    # Get the top three provinces and sum the rest
     top_provinces = df_filtered.head(3)
-    other_sum = df_filtered.iloc[3:][f'Rok {year}'].sum() if len(df_filtered) > 3 else 0.0
-
-    # Przygotowanie danych do wykresu kołowego
-    pie_data = list(top_provinces[f'Rok {year}']) + [other_sum]
+    other_sum = df_filtered.iloc[3:][year_column].sum() if len(df_filtered) > 3 else 0.0
+    
+    # Prepare data for the pie chart
+    pie_data = list(top_provinces[year_column]) + [other_sum]
     labels = list(top_provinces['Województwo']) + ['Inne']
-    colors = plt.cm.Set3.colors[:len(labels)]
-
-    # Wykreślenie wykresu kołowego
+    colors = plt.cm.Set3.colors[:len(pie_data)]
+    
+    # Plot the pie chart
     plt.figure(figsize=(8, 8))
     plt.pie(pie_data, labels=labels, autopct='%1.1f%%', startangle=140, colors=colors)
-    plt.title(f'Udział bezrobocia w wybranych województwach w roku {year}')
+    plt.title(f'Udział bezrobocia w wybranych województwach (bez POLSKI) w roku {year}')
     plt.axis('equal')
     plt.show()
-
 
 start_year = 2004
 end_year = 2023
 year = 2020
 provinces = ['ŚLĄSKIE', 'MAZOWIECKIE', 'MAŁOPOLSKIE']
+
 plot_all_provinces(df, start_year, end_year)
 plot_selected_provinces(df, provinces, start_year, end_year)
 plot_pie_chart(df, provinces, year)
+
