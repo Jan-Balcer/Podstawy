@@ -1,5 +1,6 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 
 # Wczytywanie danych z pliku CSV
 filename = 'RYNED.csv'
@@ -49,13 +50,36 @@ print(df.head())
 def plot_all_provinces(df, start_year, end_year):
     years = list(range(start_year, end_year + 1))
     df_period = df[['Województwo'] + [f'Rok {year}' for year in years]]
+
+    # Konwersja wartości na liczby zmiennoprzecinkowe
+    for year in years:
+        column = f'Rok {year}'
+        df_period[column] = df_period[column].str.replace(',', '.').astype(float)
+    
     plt.figure(figsize=(14, 7))
-    for index, row in df_period.iterrows():
+    
+    # Wyodrębnienie danych dla Polski
+    df_polska = df_period[df_period['Województwo'].str.upper() == 'POLSKA']
+    df_wojewodztwa = df_period[df_period['Województwo'].str.upper() != 'POLSKA']
+    
+    # Rysowanie linii dla województw
+    for index, row in df_wojewodztwa.iterrows():
         plt.plot(years, row[1:], label=row['Województwo'])
+    
+    # Rysowanie wyróżnionej linii dla Polski
+    if not df_polska.empty:
+        row_polska = df_polska.iloc[0]
+        plt.plot(years, row_polska[1:], label='POLSKA', linewidth=3, linestyle='--', color='black')
+    
     plt.xlabel('Rok')
     plt.ylabel('Stopa bezrobocia (%)')
     plt.title(f'Stopa bezrobocia w Polsce w latach {start_year}-{end_year}')
     plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+
+    ax = plt.gca()
+    ax.yaxis.set_major_locator(MaxNLocator(integer=True, prune='both'))
+    plt.xticks(years)  # Wyświetlanie wszystkich lat na osi X
+
     plt.tight_layout()
     plt.show()
 
@@ -63,42 +87,67 @@ def plot_all_provinces(df, start_year, end_year):
 def plot_selected_provinces(df, provinces, start_year, end_year):
     years = [f'Rok {year}' for year in range(start_year, end_year + 1)]
     df_filtered = df[df['Województwo'].str.strip().str.upper().isin([prov.upper() for prov in provinces])]
+
+    # Konwersja wartości na liczby zmiennoprzecinkowe
+    for year in years:
+        df_filtered[year] = df_filtered[year].str.replace(',', '.').astype(float)
+    
     print(df_filtered.head())  # Debugowanie - sprawdzenie, co jest filtrowane
+
     if not df_filtered.empty:
         plt.figure(figsize=(14, 7))
         for index, row in df_filtered.iterrows():
-            plt.plot(years, row[years], label=row['Województwo'])
+            plt.plot(range(start_year, end_year + 1), row[years], label=row['Województwo'])
         plt.xlabel('Rok')
         plt.ylabel('Stopa bezrobocia (%)')
         plt.title(f'Stopa bezrobocia w wybranych województwach w latach {start_year}-{end_year}')
         plt.legend()
+
+        ax = plt.gca()
+        ax.yaxis.set_major_locator(MaxNLocator(integer=True, prune='both'))
+        plt.xticks(range(start_year, end_year + 1))  # Ustawianie pełnych lat na osi X
+
         plt.tight_layout()
         plt.show()
     else:
         print(f"Brak danych dla województw: {provinces}")
 
-# 3. Kolejna wizualizacja dla tych samych trzech województw, np. histogram
-def plot_histogram_selected_provinces(df, provinces, start_year, end_year):
-    years = [f'Rok {year}' for year in range(start_year, end_year + 1)]
-    plt.figure(figsize=(14, 7))
-    for province in provinces:
-        df_province = df[df['Województwo'].str.strip().str.upper() == province.upper()]
-        print(df_province.head())  # Debugowanie - sprawdzenie, co jest filtrowane
-        if not df_province.empty:
-            data = df_province[years].iloc[0].str.replace(',', '.').astype(float)
-            plt.hist(data, bins=10, alpha=0.5, label=province)
-    plt.xlabel('Stopa bezrobocia (%)')
-    plt.ylabel('Liczba wystąpień')
-    plt.title(f'Histogram stopy bezrobocia w wybranych województwach w latach {start_year}-{end_year}')
-    plt.legend()
-    plt.tight_layout()
+# Funkcja do rysowania wykresu kołowego dla wybranych trzech województw w roku 2020
+def plot_pie_chart(df, provinces, year):
+    # Filtrowanie danych dla wybranego roku i województw
+    df_filtered = df[df['Województwo'].str.strip().str.upper().isin([prov.upper() for prov in provinces])]
+    df_filtered = df_filtered[['Województwo', f'Rok {year}']]
+
+    # Konwersja wartości na liczby zmiennoprzecinkowe
+    df_filtered[f'Rok {year}'] = pd.to_numeric(df_filtered[f'Rok {year}'].str.replace(',', '.'), errors='coerce')
+
+    # Usunięcie wierszy z brakującymi danymi po konwersji
+    df_filtered.dropna(subset=[f'Rok {year}'], inplace=True)
+
+    # Sortowanie malejąco wg wartości bezrobocia w danym roku
+    df_filtered.sort_values(by=f'Rok {year}', ascending=False, inplace=True)
+
+    # Wybór trzech najwyższych wartości oraz pozostałych
+    top_provinces = df_filtered.head(3)
+    other_sum = df_filtered.iloc[3:][f'Rok {year}'].sum() if len(df_filtered) > 3 else 0.0
+
+    # Przygotowanie danych do wykresu kołowego
+    pie_data = list(top_provinces[f'Rok {year}']) + [other_sum]
+    labels = list(top_provinces['Województwo']) + ['Inne']
+    colors = plt.cm.Set3.colors[:len(labels)]
+
+    # Wykreślenie wykresu kołowego
+    plt.figure(figsize=(8, 8))
+    plt.pie(pie_data, labels=labels, autopct='%1.1f%%', startangle=140, colors=colors)
+    plt.title(f'Udział bezrobocia w wybranych województwach w roku {year}')
+    plt.axis('equal')
     plt.show()
 
-# Przykładowe wywołanie funkcji
-start_year = 2010
-end_year = 2023
-provinces = ['Mazowieckie', 'Śląskie', 'Wielkopolskie']
 
+start_year = 2004
+end_year = 2023
+year = 2020
+provinces = ['ŚLĄSKIE', 'MAZOWIECKIE', 'MAŁOPOLSKIE']
 plot_all_provinces(df, start_year, end_year)
 plot_selected_provinces(df, provinces, start_year, end_year)
-plot_histogram_selected_provinces(df, provinces, start_year, end_year)
+plot_pie_chart(df, provinces, year)
