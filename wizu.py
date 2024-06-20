@@ -104,39 +104,39 @@ def plot_selected_provinces(df, provinces, start_year, end_year):
     else:
         print(f"Brak danych dla województw: {provinces}")
 
-# Funkcja do rysowania wykresu kołowego dla wybranych trzech województw w roku 2020
-def plot_pie_chart(df, provinces, year):
-    # Create the column name for the specified year
+# Funkcja do rysowania wykresu kołowego do porównania trzech województw z największym bezrobociem z innymi w roku 2020
+def plot_pie_chart(df, year):
+    # Tworzenie kolumny dla wybranego wiersza
     year_column = f'Rok {year}'
     
-    # Filter data for the selected year and provinces, excluding "POLSKA"
-    df_filtered = df[(df['Województwo'] != 'POLSKA') & df['Województwo'].str.upper().isin([prov.upper() for prov in provinces])].copy()
-    df_filtered = df_filtered[['Województwo', year_column]]
+    # Znajdowanie danych dla wybranego roku i wykluczanie wiersza "POLSKA"
+    df_filtered = df[(df['Województwo'] != 'POLSKA')].copy()
     
-    # Drop rows with missing data
+    # Opuszczenie wierszy z brakującymi danymi w zakresie wybranego roku
     df_filtered.dropna(subset=[year_column], inplace=True)
     
     # Konwersja wartości na liczby zmiennoprzecinkowe
     df_filtered[year_column] = convert_to_float(df_filtered[year_column])
     
-    # Sort values in descending order by unemployment rate in the selected year
+    # Sortowanie wartości bezrobocia w 2020 w kolejności malejącej
     df_filtered.sort_values(by=year_column, ascending=False, inplace=True)
     
-    # Get the top three provinces and sum the rest
+    # Znalezienie trzech województw z największym bezrobociem, zsumowanie reszty
     top_provinces = df_filtered.head(3)
-    other_sum = df_filtered.iloc[3:][year_column].sum() if len(df_filtered) > 3 else 0.0
+    other_sum = df_filtered.iloc[3:][year_column].sum() if len(df_filtered) > 3 else df_filtered[year_column].sum()
     
-    # Prepare data for the pie chart
+    # Przygotowanie danych do wykresu kołowego
     pie_data = list(top_provinces[year_column]) + [other_sum]
     labels = list(top_provinces['Województwo']) + ['Inne']
     colors = plt.cm.Set3.colors[:len(pie_data)]
     
-    # Plot the pie chart
+    # Tworzenie wykresu kołowego
     plt.figure(figsize=(8, 8))
     plt.pie(pie_data, labels=labels, autopct='%1.1f%%', startangle=140, colors=colors)
-    plt.title(f'Udział bezrobocia w wybranych województwach (bez POLSKI) w roku {year}')
+    plt.title(f'Województwa z największym bezrobociem w roku {year} - procentowy udział w stosunku do wszystkich województw')
     plt.axis('equal')
     plt.show()
+
 
 start_year = 2004
 end_year = 2023
@@ -145,5 +145,5 @@ provinces = ['ŚLĄSKIE', 'MAZOWIECKIE', 'MAŁOPOLSKIE']
 
 plot_all_provinces(df, start_year, end_year)
 plot_selected_provinces(df, provinces, start_year, end_year)
-plot_pie_chart(df, provinces, year)
+plot_pie_chart(df, year)
 
